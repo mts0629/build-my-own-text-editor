@@ -9,4 +9,4 @@
 - gcc
     - C99 規格
 - GNU Make
-- ヘッダファイル: `<termios.h>`
+- ヘッダファイル: `<termios.h>`, `<unistd.h>`
