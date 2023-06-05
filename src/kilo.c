@@ -1,11 +1,17 @@
 /*** includes ***/
 
+// Feature test macro for getline()
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
+#define _GNU_SOURCE
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -38,11 +44,19 @@ enum EditorKey {
 
 /*** data ***/
 
+// Editor row
+typedef struct ERow {
+    int size;
+    char* chars;
+} ERow;
+
 // Editor configuration
 struct EditorConfig {
     int cx, cy; // Cursor position
-    int screenrows;
-    int screencols;
+    int screen_rows;
+    int screen_cols;
+    int num_rows;
+    ERow row;
     struct termios orig_termios; // Original configuration
 };
 
@@ -221,6 +235,35 @@ int getWindowSize(int* rows, int* cols) {
     }
 }
 
+/*** file I/O ***/
+
+void editorOpen(const char* file_name) {
+    FILE* fp = fopen(file_name, "r");
+    if (!fp) {
+        die("fopen");
+    }
+
+    char* line = NULL;
+    size_t line_cap = 0; // Line capacity
+    ssize_t line_len; // Num of characters being read
+    line_len = getline(&line, &line_cap, fp);
+    if (line_len != -1) {
+        while ((line_len > 0) &&
+               ((line[line_len - 1] == '\n') || (line[line_len - 1] == '\r'))) {
+            line_len--;
+        }
+        // Copy a line text to the one of the editor row
+        E.row.size = line_len;
+        E.row.chars = malloc(line_len + 1);
+        memcpy(E.row.chars, line, line_len);
+        E.row.chars[line_len] = '\0';
+        E.num_rows = 1;
+    }
+
+    free(line);
+    fclose(fp);
+}
+
 /*** append buffer ***/
 
 // Append buffer
@@ -250,33 +293,43 @@ void ABFree(struct ABuf* ab) {
 /*** output ***/
 
 void editorDrawRows(struct ABuf* ab) {
-    // Draw editor titles at the center of the screen
-    // And draw '~' at the end of each line
-    for (int y = 0; y < E.screenrows; y++) {
-        // Centering of the titles
-        if (y == E.screenrows / 3) {
-            char welcome[80];
-            int welcome_len = snprintf(welcome, sizeof(welcome),
-                "kilo editor -- version %s", KILO_VERSION);
-            if (welcome_len > E.screencols) {
-                welcome_len = E.screencols;
-            }
-            int padding = (E.screencols - welcome_len) / 2;
-            if (padding) {
+    for (int y = 0; y < E.screen_rows; y++) {
+        if (y >= E.num_rows) {
+            // If there are no editor rows:
+            // Draw editor titles at the center of the screen
+            // And draw '~' at the end of each line
+            if ((E.num_rows == 0) && (y == E.screen_rows / 3)) {
+                char welcome[80];
+                int welcome_len = snprintf(welcome, sizeof(welcome),
+                    "kilo editor -- version %s", KILO_VERSION);
+                if (welcome_len > E.screen_cols) {
+                    welcome_len = E.screen_cols;
+                }
+                // Do centering of the titles
+                int padding = (E.screen_cols - welcome_len) / 2;
+                if (padding) {
+                    ABAppend(ab, "~", 1);
+                    padding--;
+                }
+                while (padding--) {
+                    ABAppend(ab, " ", 1);
+                }
+                ABAppend(ab, welcome, welcome_len);
+            } else {
                 ABAppend(ab, "~", 1);
-                padding--;
             }
-            while (padding--) {
-                ABAppend(ab, " ", 1);
-            }
-            ABAppend(ab, welcome, welcome_len);
         } else {
-            ABAppend(ab, "~", 1);
+            // Draw the editor rows
+            int len = E.row.size;
+            if (len > E.screen_rows) {
+                len = E.screen_cols;
+            }
+            ABAppend(ab, E.row.chars, len);
         }
 
         // "<ESC>[K" ("[K1"): clear the current line
         ABAppend(ab, "\x1b[K", 3);
-        if (y < (E.screenrows - 1)) {
+        if (y < (E.screen_rows - 1)) {
             ABAppend(ab, "\r\n", 2);
         }
     }
@@ -315,7 +368,7 @@ void editorMoveCursor(const int key) {
             }
             break;
         case ARROW_RIGHT:
-            if (E.cx != (E.screencols - 1)) {
+            if (E.cx != (E.screen_cols - 1)) {
                 E.cx++;
             }
             break;
@@ -325,7 +378,7 @@ void editorMoveCursor(const int key) {
             }
             break;
         case ARROW_DOWN:
-            if (E.cy != (E.screenrows - 1)) {
+            if (E.cy != (E.screen_rows - 1)) {
                 E.cy++;
             }
             break;
@@ -350,12 +403,12 @@ void editorProcessKeypress(void) {
             E.cx = 0;
             break;
         case END_KEY:
-            E.cx = E.screencols - 1;
+            E.cx = E.screen_cols - 1;
             break;
         case PAGE_UP:
         case PAGE_DOWN:
             {
-                int times = E.screenrows;
+                int times = E.screen_rows;
                 while (times--) {
                     editorMoveCursor((c == PAGE_UP) ? ARROW_UP : ARROW_DOWN);
                 }
@@ -376,19 +429,25 @@ void editorProcessKeypress(void) {
 /*** init ***/
 
 void initEditor(void) {
-    // Initialize the cursor position
+    // Initialize
+    // Cursor position
     E.cx = 0;
     E.cy = 0;
+    // Editor row
+    E.num_rows = 0;
 
     // Save the current window size
-    if (getWindowSize(&E.screenrows, &E.screencols) == -1) {
+    if (getWindowSize(&E.screen_rows, &E.screen_cols) == -1) {
         die("getWindowSize");
     }
 }
 
-int main(void) {
+int main(int argc, char* argv[]) {
     enableRawMode();
     initEditor();
+    if (argc >= 2) {
+        editorOpen(argv[1]);
+    }
 
     while (1) {
         editorRefreshScreen();
