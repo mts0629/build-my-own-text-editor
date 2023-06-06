@@ -56,7 +56,7 @@ struct EditorConfig {
     int screen_rows;
     int screen_cols;
     int num_rows;
-    ERow row;
+    ERow *row;
     struct termios orig_termios; // Original configuration
 };
 
@@ -235,6 +235,17 @@ int getWindowSize(int* rows, int* cols) {
     }
 }
 
+void editorAppendRow(const char* s, const size_t len) {
+    E.row = realloc(E.row, sizeof(ERow) * (E.num_rows + 1));
+
+    int at = E.num_rows;
+    E.row[at].size = len;
+    E.row[at].chars = malloc(len + 1);
+    memcpy(E.row[at].chars, s, len);
+    E.row[at].chars[len] = '\0';
+    E.num_rows++;
+}
+
 /*** file I/O ***/
 
 void editorOpen(const char* file_name) {
@@ -246,18 +257,12 @@ void editorOpen(const char* file_name) {
     char* line = NULL;
     size_t line_cap = 0; // Line capacity
     ssize_t line_len; // Num of characters being read
-    line_len = getline(&line, &line_cap, fp);
-    if (line_len != -1) {
+    while ((line_len = getline(&line, &line_cap, fp)) != -1) {
         while ((line_len > 0) &&
                ((line[line_len - 1] == '\n') || (line[line_len - 1] == '\r'))) {
             line_len--;
         }
-        // Copy a line text to the one of the editor row
-        E.row.size = line_len;
-        E.row.chars = malloc(line_len + 1);
-        memcpy(E.row.chars, line, line_len);
-        E.row.chars[line_len] = '\0';
-        E.num_rows = 1;
+        editorAppendRow(line, line_len);
     }
 
     free(line);
@@ -320,11 +325,11 @@ void editorDrawRows(struct ABuf* ab) {
             }
         } else {
             // Draw the editor rows
-            int len = E.row.size;
+            int len = E.row[y].size;
             if (len > E.screen_rows) {
                 len = E.screen_cols;
             }
-            ABAppend(ab, E.row.chars, len);
+            ABAppend(ab, E.row[y].chars, len);
         }
 
         // "<ESC>[K" ("[K1"): clear the current line
@@ -435,6 +440,7 @@ void initEditor(void) {
     E.cy = 0;
     // Editor row
     E.num_rows = 0;
+    E.row = NULL;
 
     // Save the current window size
     if (getWindowSize(&E.screen_rows, &E.screen_cols) == -1) {
