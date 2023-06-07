@@ -53,6 +53,8 @@ typedef struct ERow {
 // Editor configuration
 struct EditorConfig {
     int cx, cy; // Cursor position
+    int row_off; // Row offset
+    int col_off; // Column offset
     int screen_rows;
     int screen_cols;
     int num_rows;
@@ -297,9 +299,25 @@ void ABFree(struct ABuf* ab) {
 
 /*** output ***/
 
+void editorScroll(void) {
+    if (E.cy < E.row_off) {
+        E.row_off = E.cy;
+    }
+    if (E.cy >= E.row_off + E.screen_rows) {
+        E.row_off = E.cy - E.screen_rows + 1;
+    }
+    if (E.cx < E.col_off) {
+        E.col_off = E.cx;
+    }
+    if (E.cx >= E.col_off + E.screen_cols) {
+        E.col_off = E.cx - E.screen_rows + 1;
+    }
+}
+
 void editorDrawRows(struct ABuf* ab) {
     for (int y = 0; y < E.screen_rows; y++) {
-        if (y >= E.num_rows) {
+        int file_row = y + E.row_off;
+        if (file_row >= E.num_rows) {
             // If there are no editor rows:
             // Draw editor titles at the center of the screen
             // And draw '~' at the end of each line
@@ -325,11 +343,14 @@ void editorDrawRows(struct ABuf* ab) {
             }
         } else {
             // Draw the editor rows
-            int len = E.row[y].size;
+            int len = E.row[file_row].size;
+            if (len < 0) {
+                len = 0;
+            }
             if (len > E.screen_rows) {
                 len = E.screen_cols;
             }
-            ABAppend(ab, E.row[y].chars, len);
+            ABAppend(ab, &E.row[file_row].chars[E.col_off], len);
         }
 
         // "<ESC>[K" ("[K1"): clear the current line
@@ -341,6 +362,8 @@ void editorDrawRows(struct ABuf* ab) {
 }
 
 void editorRefreshScreen(void) {
+    editorScroll();
+
     struct ABuf ab = ABUF_INIT;
 
     // "<ESC>[?25l": make the cursor invisible (in VT-510 terminal)
@@ -351,7 +374,9 @@ void editorRefreshScreen(void) {
 
     // Refer the cursor position
     char buf[32];
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy + 1), (E.cx + 1));
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH",
+        (E.cy - E.row_off + 1),
+        (E.cx - E.col_off + 1));
     ABAppend(&ab, buf, strlen(buf));
 
     // "<ESC>[?25h": make the cursor visible (same with the above)
@@ -373,9 +398,7 @@ void editorMoveCursor(const int key) {
             }
             break;
         case ARROW_RIGHT:
-            if (E.cx != (E.screen_cols - 1)) {
-                E.cx++;
-            }
+            E.cx++;
             break;
         case ARROW_UP:
             if (E.cy != 0) {
@@ -383,7 +406,7 @@ void editorMoveCursor(const int key) {
             }
             break;
         case ARROW_DOWN:
-            if (E.cy != (E.screen_rows - 1)) {
+            if (E.cy != E.num_rows) {
                 E.cy++;
             }
             break;
@@ -434,11 +457,12 @@ void editorProcessKeypress(void) {
 /*** init ***/
 
 void initEditor(void) {
-    // Initialize
     // Cursor position
     E.cx = 0;
     E.cy = 0;
     // Editor row
+    E.row_off = 0;
+    E.col_off = 0;
     E.num_rows = 0;
     E.row = NULL;
 
