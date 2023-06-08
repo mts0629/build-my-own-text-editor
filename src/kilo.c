@@ -391,14 +391,24 @@ void editorRefreshScreen(void) {
 /*** input ***/
 
 void editorMoveCursor(const int key) {
+    ERow* row = (E.cy >= E.num_rows) ? NULL : &E.row[E.cy];
+
     switch (key) {
         case ARROW_LEFT:
             if (E.cx != 0) {
                 E.cx--;
+            } else if (E.cy > 0) {
+                E.cy--;
+                E.cx = E.row[E.cy].size;
             }
             break;
         case ARROW_RIGHT:
-            E.cx++;
+            if (row && (E.cx  < row->size)) {
+                E.cx++;
+            } else if (row && (E.cx == row->size)) {
+                E.cy++;
+                E.cx = 0;
+            }
             break;
         case ARROW_UP:
             if (E.cy != 0) {
@@ -412,6 +422,13 @@ void editorMoveCursor(const int key) {
             break;
         default:
             break;
+    }
+
+    // Snap cursor to the end of line
+    row = (E.cy >= E.num_rows) ? NULL : &E.row[E.cy];
+    int row_len = row ? row->size : 0;
+    if (E.cx > row_len) {
+        E.cx = row_len;
     }
 }
 
