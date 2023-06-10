@@ -7,12 +7,14 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 /*** defines ***/
@@ -64,6 +66,8 @@ struct EditorConfig {
     int num_rows;
     ERow* row;
     char* file_name;
+    char status_msg[80]; // Status message
+    time_t status_msg_time;
     struct termios orig_termios; // Original configuration
 };
 
@@ -423,7 +427,8 @@ void editorDrawStatusBar(struct ABuf* ab) {
     char status[80], rstatus[80];
     int len = snprintf(status, sizeof(status), "%.20s - %d lines",
         (E.file_name ? E.file_name : "[No Name]"), E.num_rows);
-    int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d", (E.cy + 1), E.num_rows);
+    int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
+        (E.cy + 1), E.num_rows);
     if (len > E.screen_cols) {
         len = E.screen_cols;
     }
@@ -438,8 +443,20 @@ void editorDrawStatusBar(struct ABuf* ab) {
         }
     }
     ABAppend(ab, "\x1b[m", 3); // Restore default formatting
+    ABAppend(ab, "\r\n", 2);
 }
 
+void editorDrawMessageBar(struct ABuf* ab) {
+    ABAppend(ab, "\x1b[K", 3); // Clear the message bar
+    int msg_len = strlen(E.status_msg);
+    if (msg_len > E.screen_cols) {
+        msg_len = E.screen_cols;
+    }
+    // Disappear after 5 seconds from the start
+    if (msg_len && (time(NULL) - E.status_msg_time < 5)) {
+        ABAppend(ab, E.status_msg, msg_len);
+    }
+}
 
 void editorRefreshScreen(void) {
     editorScroll();
@@ -452,6 +469,7 @@ void editorRefreshScreen(void) {
 
     editorDrawRows(&ab);
     editorDrawStatusBar(&ab);
+    editorDrawMessageBar(&ab);
 
     // Refer the cursor position
     char buf[32];
@@ -465,8 +483,15 @@ void editorRefreshScreen(void) {
 
     // Draw append buffer
     WRITE_WITH_CHECK(STDOUT_FILENO, ab.b, ab.len);
-
     ABFree(&ab);
+}
+
+void editorSetStatusMessage(const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(E.status_msg, sizeof(E.status_msg), fmt, ap);
+    va_end(ap);
+    E.status_msg_time = time(NULL);
 }
 
 /*** input ***/
@@ -576,13 +601,15 @@ void initEditor(void) {
     E.num_rows = 0;
     E.row = NULL;
     E.file_name = NULL;
+    E.status_msg[0] = '\0';
+    E.status_msg_time = 0;
 
     // Save the current window size
     if (getWindowSize(&E.screen_rows, &E.screen_cols) == -1) {
         die("getWindowSize");
     }
 
-    E.screen_rows -= 1;
+    E.screen_rows -= 2;
 }
 
 int main(int argc, char* argv[]) {
@@ -591,6 +618,8 @@ int main(int argc, char* argv[]) {
     if (argc >= 2) {
         editorOpen(argv[1]);
     }
+
+    editorSetStatusMessage("HELP: Ctrl-Q = quit");
 
     while (1) {
         editorRefreshScreen();
