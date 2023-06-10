@@ -18,6 +18,7 @@
 /*** defines ***/
 
 #define KILO_VERSION "0.0.1"
+#define KILO_TAB_STOP 8
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -47,12 +48,15 @@ enum EditorKey {
 // Editor row
 typedef struct ERow {
     int size;
-    char* chars;
+    int rsize;
+    char* chars; // Container of characters
+    char* render; // Render of characters
 } ERow;
 
 // Editor configuration
 struct EditorConfig {
     int cx, cy; // Cursor position
+    int rx; // Render index
     int row_off; // Row offset
     int col_off; // Column offset
     int screen_rows;
@@ -237,6 +241,45 @@ int getWindowSize(int* rows, int* cols) {
     }
 }
 
+/*** row operations ***/
+
+int editorRowCxToRx(ERow* row, const int cx) {
+    int rx = 0;
+    for (int j = 0; j < cx; j++) {
+        if (row->chars[j] == '\t') {
+            rx += ((KILO_TAB_STOP - 1) - (rx % KILO_TAB_STOP));
+        }
+        rx++;
+    }
+    return rx;
+}
+
+void editorUpdateRow(ERow* row) {
+    int tabs = 0;
+    for (int j = 0; j < row->size; j++) {
+        if (row->chars[j] == '\t') {
+            tabs++;
+        }
+    }
+
+    free(row->render);
+    row->render = malloc(row->size + tabs * (KILO_TAB_STOP - 1) + 1);
+
+    int idx = 0;
+    for (int j = 0; j < row->size; j++) {
+        if (row->chars[j] == '\t') {
+            row->render[idx++] = ' ';
+            while ((idx % KILO_TAB_STOP) != 0) {
+                row->render[idx++] = ' ';
+            }
+        } else {
+            row->render[idx++] = row->chars[j];
+        }
+    }
+    row->render[idx] = '\0';
+    row->rsize = idx;
+}
+
 void editorAppendRow(const char* s, const size_t len) {
     E.row = realloc(E.row, sizeof(ERow) * (E.num_rows + 1));
 
@@ -245,6 +288,11 @@ void editorAppendRow(const char* s, const size_t len) {
     E.row[at].chars = malloc(len + 1);
     memcpy(E.row[at].chars, s, len);
     E.row[at].chars[len] = '\0';
+
+    E.row[at].rsize = 0;
+    E.row[at].render = NULL;
+    editorUpdateRow(&E.row[at]);
+
     E.num_rows++;
 }
 
@@ -300,17 +348,23 @@ void ABFree(struct ABuf* ab) {
 /*** output ***/
 
 void editorScroll(void) {
+    // Convert character position to that of the render
+    E.rx = 0;
+    if (E.cy < E.num_rows) {
+        E.rx = editorRowCxToRx(&E.row[E.cy], E.cx);
+    }
+
     if (E.cy < E.row_off) {
         E.row_off = E.cy;
     }
     if (E.cy >= E.row_off + E.screen_rows) {
         E.row_off = E.cy - E.screen_rows + 1;
     }
-    if (E.cx < E.col_off) {
-        E.col_off = E.cx;
+    if (E.rx < E.col_off) {
+        E.col_off = E.rx;
     }
-    if (E.cx >= E.col_off + E.screen_cols) {
-        E.col_off = E.cx - E.screen_rows + 1;
+    if (E.rx >= E.col_off + E.screen_cols) {
+        E.col_off = E.rx - E.screen_rows + 1;
     }
 }
 
@@ -343,14 +397,14 @@ void editorDrawRows(struct ABuf* ab) {
             }
         } else {
             // Draw the editor rows
-            int len = E.row[file_row].size;
+            int len = E.row[file_row].rsize - E.col_off;
             if (len < 0) {
                 len = 0;
             }
             if (len > E.screen_rows) {
                 len = E.screen_cols;
             }
-            ABAppend(ab, &E.row[file_row].chars[E.col_off], len);
+            ABAppend(ab, &E.row[file_row].render[E.col_off], len);
         }
 
         // "<ESC>[K" ("[K1"): clear the current line
@@ -376,7 +430,7 @@ void editorRefreshScreen(void) {
     char buf[32];
     snprintf(buf, sizeof(buf), "\x1b[%d;%dH",
         (E.cy - E.row_off + 1),
-        (E.cx - E.col_off + 1));
+        (E.rx - E.col_off + 1));
     ABAppend(&ab, buf, strlen(buf));
 
     // "<ESC>[?25h": make the cursor visible (same with the above)
@@ -474,9 +528,10 @@ void editorProcessKeypress(void) {
 /*** init ***/
 
 void initEditor(void) {
-    // Cursor position
+    // Positions
     E.cx = 0;
     E.cy = 0;
+    E.rx = 0;
     // Editor row
     E.row_off = 0;
     E.col_off = 0;
