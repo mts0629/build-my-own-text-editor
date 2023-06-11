@@ -11,6 +11,7 @@
 - GNU Make
 - POSIXヘッダ
     - `<sys/ioctl.h>`
+    - `<sys/types.h>`
     - `<termios.h>`
     - `<unistd.h>`
 
