@@ -315,6 +315,30 @@ void editorAppendRow(const char* s, const size_t len) {
     E.num_rows++;
 }
 
+// Insert a character to the editor row
+void editorRowInsertChar(ERow* row, int at, const int c) {
+    if ((at < 0) || (at > row->size)) {
+        at = row->size;
+    }
+    row->chars = realloc(row->chars, (row->size + 2));
+    // Copy string, safe for overwrapping of src/dest buffers
+    memmove(&row->chars[at + 1], &row->chars[at], (row->size - at + 1));
+    row->size++;
+    row->chars[at] = c;
+    editorUpdateRow(row);
+}
+
+/*** editor operations ***/
+
+// Insert a character to the editor row
+void editorInsertChar(const int c) {
+    if (E.cy == E.num_rows) {
+        editorAppendRow("", 0);
+    }
+    editorRowInsertChar(&E.row[E.cy], E.cx, c);
+    E.cx++;
+}
+
 /*** file I/O ***/
 
 // Open the file
@@ -612,6 +636,7 @@ void editorProcessKeypress(void) {
             break;
 
         default:
+            editorInsertChar(c);
             break;
     }
 }
