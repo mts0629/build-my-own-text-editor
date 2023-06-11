@@ -409,7 +409,7 @@ void editorDrawRows(struct ABuf* ab) {
             if (len < 0) {
                 len = 0;
             }
-            if (len > E.screen_rows) {
+            if (len > E.screen_cols) {
                 len = E.screen_cols;
             }
             ABAppend(ab, &E.row[file_row].render[E.col_off], len);
