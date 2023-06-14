@@ -34,6 +34,7 @@
 
 // Internal representations of control keys
 enum EditorKey {
+    BACKSPACE = 127,
     ARROW_LEFT = 1000,
     ARROW_RIGHT,
     ARROW_UP,
@@ -594,6 +595,9 @@ void editorProcessKeypress(void) {
     int c = editorReadKey();
 
     switch (c) {
+        case `\r':
+            // TODO
+            break;
         // Quit the editor
         case CTRL_KEY('q'):
             WRITE_WITH_CHECK(STDOUT_FILENO, "\x1b[2J", 4);
@@ -610,6 +614,13 @@ void editorProcessKeypress(void) {
                 E.cx = E.row[E.cy].size;
             }
             break;
+
+        case BACKSPACE:
+        case CTRL_KEY('h'):
+        case DEL_KEY:
+            // TODO
+            break;
+
         case PAGE_UP:
         case PAGE_DOWN:
             {
@@ -633,6 +644,10 @@ void editorProcessKeypress(void) {
         case ARROW_LEFT:
         case ARROW_RIGHT:
             editorMoveCursor(c);
+            break;
+
+        case CTRL_KEY('l'):
+        case '\x1b': // ESC
             break;
 
         default:
