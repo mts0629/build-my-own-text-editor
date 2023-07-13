@@ -7,6 +7,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,6 +74,10 @@ struct EditorConfig {
 };
 
 static struct EditorConfig E;
+
+/*** prototypes ***/
+
+void editorSetStatusMessage(const char* fmt, ...);
 
 /*** terminal ***/
 
@@ -342,6 +347,28 @@ void editorInsertChar(const int c) {
 
 /*** file I/O ***/
 
+// Copy string of editor rows to the buffer
+char *editorRowsToString(int *buf_len) {
+    // Get total length
+    int tot_len = 0;
+    for (int j = 0; j < E.num_rows; j++) {
+        tot_len += E.row[j].size + 1;
+    }
+    *buf_len = tot_len;
+
+    // Copy editor rows to the buffer
+    char *buf = malloc(tot_len);
+    char *p = buf;
+    for (int j = 0; j < E.num_rows; j++) {
+        memcpy(p, E.row[j].chars, E.row[j].size);
+        p += E.row[j].size;
+        *p = '\n';
+        p++;
+    }
+
+    return buf;
+}
+
 // Open the file
 void editorOpen(const char* file_name) {
     free(E.file_name);
@@ -365,6 +392,35 @@ void editorOpen(const char* file_name) {
 
     free(line);
     fclose(fp);
+}
+
+// Save the file
+void editorSave(void) {
+    if (E.file_name == NULL) {
+        return;
+    }
+
+    int len;
+    char *buf = editorRowsToString(&len);
+
+    // Open a file descriptor
+    // `0644` is the standrd permissions for text file (read/write)
+    int fd = open(E.file_name, (O_RDWR | O_CREAT), 0644);
+    if (fd != -1) {
+        // Truncate the file size
+        if (ftruncate(fd, len) != -1) {
+            if (write(fd, buf, len) == len) {
+                close(fd);
+                free(buf);
+                editorSetStatusMessage("%d bytes written to disk", len);
+                return;
+            }
+        }
+        close(fd);
+    }
+
+    free(buf);
+    editorSetStatusMessage("Can't save! I/O error %s", strerror(errno));
 }
 
 /*** append buffer ***/
@@ -598,11 +654,17 @@ void editorProcessKeypress(void) {
         case '\r':
             // TODO
             break;
+
         // Quit the editor
         case CTRL_KEY('q'):
             WRITE_WITH_CHECK(STDOUT_FILENO, "\x1b[2J", 4);
             WRITE_WITH_CHECK(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
+            break;
+
+        // Save the editor contents
+        case CTRL_KEY('s'):
+            editorSave();
             break;
 
         // Move cursor
@@ -687,7 +749,7 @@ int main(int argc, char* argv[]) {
         editorOpen(argv[1]);
     }
 
-    editorSetStatusMessage("HELP: Ctrl-Q = quit");
+    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
 
     while (1) {
         editorRefreshScreen();
