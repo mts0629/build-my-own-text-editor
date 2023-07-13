@@ -595,7 +595,7 @@ void editorProcessKeypress(void) {
     int c = editorReadKey();
 
     switch (c) {
-        case `\r':
+        case '\r':
             // TODO
             break;
         // Quit the editor
