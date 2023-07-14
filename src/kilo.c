@@ -67,6 +67,7 @@ struct EditorConfig {
     int screen_cols;    // The number of columns of the screen
     int num_rows;       // The number of rows
     ERow* row;          // Editor rows
+    int dirty;          // Dirty flag
     char* file_name;        // File name
     char status_msg[80];    // Status message
     time_t status_msg_time; // Timestamp when status message is updated
@@ -319,6 +320,7 @@ void editorAppendRow(const char* s, const size_t len) {
     editorUpdateRow(&E.row[at]);
 
     E.num_rows++;
+    E.dirty++;
 }
 
 // Insert a character to the editor row
@@ -332,6 +334,7 @@ void editorRowInsertChar(ERow* row, int at, const int c) {
     row->size++;
     row->chars[at] = c;
     editorUpdateRow(row);
+    E.dirty++;
 }
 
 /*** editor operations ***/
@@ -392,6 +395,8 @@ void editorOpen(const char* file_name) {
 
     free(line);
     fclose(fp);
+
+    E.dirty = 0;
 }
 
 // Save the file
@@ -412,6 +417,7 @@ void editorSave(void) {
             if (write(fd, buf, len) == len) {
                 close(fd);
                 free(buf);
+                E.dirty = 0;
                 editorSetStatusMessage("%d bytes written to disk", len);
                 return;
             }
@@ -528,8 +534,9 @@ void editorDrawStatusBar(struct ABuf* ab) {
     ABAppend(ab, "\x1b[7m", 4); // Invert color
     // Copy the file name
     char status[80], rstatus[80];
-    int len = snprintf(status, sizeof(status), "%.20s - %d lines",
-        (E.file_name ? E.file_name : "[No Name]"), E.num_rows);
+    int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
+        (E.file_name ? E.file_name : "[No Name]"), E.num_rows,
+        (E.dirty ? "(modified)" : ""));
     int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
         (E.cy + 1), E.num_rows);
     if (len > E.screen_cols) {
@@ -730,6 +737,7 @@ void initEditor(void) {
     E.col_off = 0;
     E.num_rows = 0;
     E.row = NULL;
+    E.dirty = 0;
     E.file_name = NULL;
     E.status_msg[0] = '\0';
     E.status_msg_time = 0;
