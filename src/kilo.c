@@ -352,7 +352,7 @@ void editorRowDelChar(ERow* row, const int at) {
 
 /*** editor operations ***/
 
-// Insert a character to the editor row
+// Insert a character
 void editorInsertChar(const int c) {
     if (E.cy == E.num_rows) {
         editorAppendRow("", 0);
@@ -367,7 +367,7 @@ void editorDelChar(void) {
         return;
     }
 
-    ERow *row = &E.row[E.cy];
+    ERow* row = &E.row[E.cy];
     if (E.cx > 0) {
         editorRowDelChar(row, (E.cx - 1));
         E.cx--;
@@ -377,7 +377,7 @@ void editorDelChar(void) {
 /*** file I/O ***/
 
 // Copy string of editor rows to the buffer
-char *editorRowsToString(int *buf_len) {
+char* editorRowsToString(int* buf_len) {
     // Get total length
     int tot_len = 0;
     for (int j = 0; j < E.num_rows; j++) {
@@ -386,8 +386,8 @@ char *editorRowsToString(int *buf_len) {
     *buf_len = tot_len;
 
     // Copy editor rows to the buffer
-    char *buf = malloc(tot_len);
-    char *p = buf;
+    char* buf = malloc(tot_len);
+    char* p = buf;
     for (int j = 0; j < E.num_rows; j++) {
         memcpy(p, E.row[j].chars, E.row[j].size);
         p += E.row[j].size;
@@ -432,7 +432,7 @@ void editorSave(void) {
     }
 
     int len;
-    char *buf = editorRowsToString(&len);
+    char* buf = editorRowsToString(&len);
 
     // Open a file descriptor
     // `0644` is the standrd permissions for text file (read/write)
