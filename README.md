@@ -17,15 +17,15 @@
 
 ## Build
 
-- `make` コマンドで `bin/release` 以下に `kilo` をビルド（out-of-source ビルド）
+- `make` コマンドで `build/release` 以下に `kilo` をビルド（out-of-source ビルド）
 
 ```sh
 $ make
-gcc -Wall -Wextra -Wpedantic -std=c99 -O2 -c src/kilo.c -o bin/release/src/kilo.o
-gcc -Wall -Wextra -Wpedantic -std=c99 -O2 bin/release/src/kilo.o -o bin/release/kilo
+gcc -Wall -Wextra -Wpedantic -std=c99 -O2 -c src/kilo.c -o build/release/src/kilo.o
+gcc -Wall -Wextra -Wpedantic -std=c99 -O2 build/release/src/kilo.o -o build/release/kilo
 ```
 
-- `make DEBUG=yes` でデバッグ情報を付加し、 `bin/debug` 以下に `kilo` をビルド
+- `make DEBUG=yes` でデバッグ情報を付加し、 `build/debug` 以下に `kilo` をビルド
 
 ## License
 

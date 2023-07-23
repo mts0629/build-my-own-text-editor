@@ -1,5 +1,5 @@
 SRC_DIR := src
-BIN_DIR := bin
+BIN_DIR := build
 
 CC     := gcc
 CFLAGS := -Wall -Wextra -Wpedantic -std=c99
