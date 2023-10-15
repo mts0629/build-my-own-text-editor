@@ -537,18 +537,45 @@ void editorSave(void) {
 /*** find ***/
 // Searching process for editorFind
 void editorFindCallback(char* query, int key) {
-    // If the ENTER of ESC are pressed, quit searching immediately
+    static int last_match = -1; // -1: no match, otherwise: num of the row
+    static int direction = 1; // 1: forward, -1: backward
+
+    // If the ENTER or ESC are pressed, quit search mode immediately
     if ((key == '\r') || (key == '\x1b')) {
+        last_match = -1;
+        direction = 1;
         return;
+    } else if ((key == ARROW_RIGHT) || (key == ARROW_DOWN)) {
+        direction = 1;
+    } else if ((key == ARROW_LEFT) || (key == ARROW_UP)) {
+        direction = -1;
+    } else {
+        last_match = -1;
+        direction = 1;
     }
 
-    // Otherwise, search the query
-    // and move the cursor to a head of the searched query if it is found
+    // If there's no match, search forward
+    if (last_match == -1) {
+        direction = 1;
+    }
+
+    // Search the query
+    // and move the cursor to a head of founded query
+    int current = last_match;
     for (int i = 0; i < E.num_rows; i++) {
-        ERow *row  = &E.row[i];
+        current += direction;
+        // Search from the next line
+        if (current == -1) {
+            current = E.num_rows - 1;
+        } else if (current == E.num_rows) {
+            current = 0;
+        }
+
+        ERow *row  = &E.row[current];
         char *match = strstr(row->render, query);
         if (match) {
-            E.cy = i;
+            last_match = current;
+            E.cy = current;
             E.cx = editorRowRxToCx(row, (match - row->render));
             E.row_off = E.num_rows;
             break;
@@ -564,7 +591,7 @@ void editorFind(void) {
     int saved_row_off = E.row_off;
 
     // Search the input string by any key-press event
-    char *query = editorPrompt("Search: %s (ESC to cancel)", editorFindCallback);
+    char *query = editorPrompt("Search: %s (Use ESC/Arrows/Enter)", editorFindCallback);
 
     if (query == NULL) {
         free(query);
