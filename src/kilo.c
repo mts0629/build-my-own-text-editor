@@ -558,11 +558,21 @@ void editorFindCallback(char* query, int key) {
 
 // Find an input string from the editor row
 void editorFind(void) {
+    int saved_cx = E.cx;
+    int saved_cy = E.cy;
+    int saved_col_off = E.col_off;
+    int saved_row_off = E.row_off;
+
     // Search the input string by any key-press event
     char *query = editorPrompt("Search: %s (ESC to cancel)", editorFindCallback);
 
     if (query == NULL) {
         free(query);
+    } else {
+        E.cx = saved_cx;
+        E.cy = saved_cy;
+        E.col_off = saved_col_off;
+        E.row_off = saved_row_off;
     }
 }
 
