@@ -1,7 +1,7 @@
 SRC_DIR := src
 BIN_DIR := build
 
-CC     := gcc
+CC := gcc
 CFLAGS := -Wall -Wextra -Wpedantic -std=c99
 
 DEBUG ?= no
@@ -16,7 +16,7 @@ endif
 BUILD_DIR := $(BIN_DIR)/$(CONFIG)
 
 SRCS := $(wildcard $(SRC_DIR)/*.c)
-OBJS := $(addprefix $(BUILD_DIR), /$(SRCS:.c=.o))
+OBJS := $(addprefix $(BUILD_DIR)/, $(SRCS:.c=.o))
 
 TARGET := $(BUILD_DIR)/kilo
 
