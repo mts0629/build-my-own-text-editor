@@ -1,15 +1,16 @@
 # build-my-own-text-editor
 
-[Build Your Own Text Editor](https://viewsourcecode.org/snaptoken/kilo/) の軽量テキストエディタ "kilo" を作ってみる
+テキストエディタ "kilo" を作ってみる
 
-本家リポジトリ：[antirez/kilo](https://github.com/antirez/kilo)
+- [Build Your Own Text Editor](https://viewsourcecode.org/snaptoken/kilo/): C言語で軽量テキストエディタを作成するチュートリアルガイド
+- [antirez/kilo](https://github.com/antirez/kilo): 上記チュートリアルで作成するテキストエディタ "kilo"
 
-## Requirements
+## Requirement
 
-- gcc
-    - `-std=C99`
+- gcc (C99)
 - GNU Make
-- POSIXヘッダ
+- POSIXライブラリ
+    - `<fcntl.h>`
     - `<sys/ioctl.h>`
     - `<sys/types.h>`
     - `<termios.h>`
@@ -17,17 +18,29 @@
 
 ## Build
 
-- `make` コマンドで `build/release` 以下に `kilo` をビルド（out-of-source ビルド）
+ビルド：
 
 ```sh
+# build/release/kilo
 $ make
-gcc -Wall -Wextra -Wpedantic -std=c99 -O2 -c src/kilo.c -o build/release/src/kilo.o
-gcc -Wall -Wextra -Wpedantic -std=c99 -O2 build/release/src/kilo.o -o build/release/kilo
 ```
 
-- `make DEBUG=yes` でデバッグ情報を付加し、 `build/debug` 以下に `kilo` をビルド
+デバッグビルド：
+
+```sh
+# build/debug/kilo
+$ make DEBUG=yes
+```
+
+## Usage
+
+```sh
+$ kilo <filename>
+```
 
 ## License
 
-- kilo: [BSD2-Clause license](https://github.com/snaptoken/kilo-tutorial/blob/master/steps.diff.LICENSE)
+BSD2-Clause License
+
+- kilo: [BSD2-Clause License](https://github.com/snaptoken/kilo-tutorial/blob/master/steps.diff.LICENSE)
 - "Build Your Own Text Editor": [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
