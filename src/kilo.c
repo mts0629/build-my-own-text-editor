@@ -48,6 +48,12 @@ enum editorKey {
     PAGE_DOWN
 };
 
+// Highlighting values
+enum editorHighlight {
+    HL_NORMAL = 0,
+    HL_NUMBER
+};
+
 /*** data ***/
 
 // Editor row
@@ -56,6 +62,7 @@ typedef struct erow {
     int rsize; // Rendering size
     char* chars; // Characters in the row
     char* render; // Rendering characters
+    unsigned char* hl; // Highlighting
 } erow;
 
 // Editor configuration
@@ -262,6 +269,30 @@ int getWindowSize(int* rows, int* cols) {
     }
 }
 
+/*** syntax highlighting ***/
+
+// Update syntax values of the row
+void editorUpdateSyntax(erow* row) {
+    row->hl = realloc(row->hl, row->rsize);
+    memset(row->hl, HL_NORMAL, row->rsize);
+
+    for (int i = 0; i < row->rsize; i++) {
+        if (isdigit(row->render[i])) {
+            row->hl[i] = HL_NUMBER;
+        }
+    }
+}
+
+// Return corresponding ANSI color code for each syntax value
+int editorSyntaxToColor(int hl) {
+    switch (hl) {
+        case HL_NUMBER:
+            return 31; // Foreground red
+        default:
+            return 37; // Foreground white
+    }
+}
+
 /*** row operations ***/
 
 // Convert character position X to rendering position
@@ -321,6 +352,8 @@ void editorUpdateRow(erow* row) {
     }
     row->render[idx] = '\0';
     row->rsize = idx;
+
+    editorUpdateSyntax(row);
 }
 
 // Append characters to the editor row
@@ -341,6 +374,7 @@ void editorInsertRow(const int at, char* s, const size_t len) {
     // Update rendering row
     E.row[at].rsize = 0;
     E.row[at].render = NULL;
+    E.row[at].hl = NULL;
     editorUpdateRow(&E.row[at]);
 
     E.numrows++;
@@ -351,6 +385,7 @@ void editorInsertRow(const int at, char* s, const size_t len) {
 void editorFreeRow(erow* row) {
     free(row->render);
     free(row->chars);
+    free(row->hl);
 }
 
 // Delete the editor row
@@ -695,16 +730,28 @@ void editorDrawRows(struct abuf* ab) {
                 len = E.screencols;
             }
             char* c = &E.row[filerow].render[E.coloff];
+            unsigned char* hl = &E.row[filerow].hl[E.coloff];
+            int current_color = -1;
             for (int j = 0; j < len; j++) {
-                if (isdigit(c[j])) {
-                    abAppend(ab, "\x1b[31m", 5); // Set the text color to red
+                if (hl[j] == HL_NORMAL) {
+                    if (current_color != -1) {
+                        abAppend(ab, "\x1b[39m", 5); // Set the text color back to normal
+                        current_color = -1;
+                    }
                     abAppend(ab, &c[j], 1);
-                    abAppend(ab, "\x1b[39m", 5); // Set the text color back to normal
                 } else {
+                    // Apply a color by the highlighting value when it is chahged
+                    int color = editorSyntaxToColor(hl[j]);
+                    if (color != current_color) {
+                        current_color = color;
+                        char buf[16];
+                        int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+                        abAppend(ab, buf, clen);
+                    }
                     abAppend(ab, &c[j], 1);
                 }
             }
-            abAppend(ab, &E.row[filerow].render[E.coloff], len);
+            abAppend(ab, "\x1b[39m", 5);
         }
 
         // "<ESC>[K" ("[K1"): clear the current line
