@@ -694,6 +694,16 @@ void editorDrawRows(struct abuf* ab) {
             if (len > E.screencols) {
                 len = E.screencols;
             }
+            char* c = &E.row[filerow].render[E.coloff];
+            for (int j = 0; j < len; j++) {
+                if (isdigit(c[j])) {
+                    abAppend(ab, "\x1b[31m", 5); // Set the text color to red
+                    abAppend(ab, &c[j], 1);
+                    abAppend(ab, "\x1b[39m", 5); // Set the text color back to normal
+                } else {
+                    abAppend(ab, &c[j], 1);
+                }
+            }
             abAppend(ab, &E.row[filerow].render[E.coloff], len);
         }
 
