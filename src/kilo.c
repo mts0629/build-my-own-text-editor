@@ -578,6 +578,15 @@ void editorFindCallback(char* query, int key) {
     static int last_match = -1; // -1: no match, otherwise: num of the row
     static int direction = 1; // 1: forward, -1: backward
 
+    static int saved_hl_line; // Line which highlighting is saved
+    static char* saved_hl = NULL; // Saved highlighting
+
+    if (saved_hl) {
+        memcpy(E.row[saved_hl_line].hl, saved_hl, E.row[saved_hl_line].rsize);
+        free(saved_hl); // saved_hl is guaranteed to be deallocated here
+        saved_hl = NULL;
+    }
+
     // If the ENTER or ESC are pressed, quit search mode immediately
     if ((key == '\r') || (key == '\x1b')) {
         last_match = -1;
@@ -617,6 +626,9 @@ void editorFindCallback(char* query, int key) {
             E.cx = editorRowRxToCx(row, (match - row->render));
             E.rowoff = E.numrows;
 
+            saved_hl_line = current;
+            saved_hl = malloc(row->rsize);
+            memcpy(saved_hl, row->hl, row->rsize);
             memset(&row->hl[match - row->render], HL_MATCH, strlen(query));
             break;
         }
