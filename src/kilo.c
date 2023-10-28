@@ -51,6 +51,7 @@ enum editorKey {
 // Highlighting values
 enum editorHighlight {
     HL_NORMAL = 0,
+    HL_COMMENT,
     HL_STRING,
     HL_NUMBER,
     HL_MATCH
@@ -64,8 +65,9 @@ enum editorHighlight {
 
 // Syntax highlighting info by a filetype
 struct editorSyntax {
-    char* filetype; // Filetype
-    char** filematch; // Table of filetypes
+    char* filetype;
+    char** filematch; // Table to detect filetype
+    char* singleline_comment_start;
     int flags; // Bit field for highlighting definition
 };
 
@@ -110,6 +112,7 @@ struct editorSyntax HLDB[] = {
     {
         "c",
         C_HL_extensions,
+        "//",
         (HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS)
     },
 };
@@ -317,6 +320,9 @@ void editorUpdateSyntax(erow* row) {
         return;
     }
 
+    char* scs = E.syntax->singleline_comment_start;
+    int scs_len = scs ? strlen(scs) : 0;
+
     int prev_sep = 1; // 1 when the previous character is a separator
     int in_string = 0; // = '"' or '\'' while parsing string
 
@@ -324,6 +330,14 @@ void editorUpdateSyntax(erow* row) {
     while (i < row->rsize) {
         char c = row->render[i];
         unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
+
+        // Single-line comment
+        if (scs_len && !in_string) {
+            if (!strncmp(&row->render[i], scs, scs_len)) {
+                memset(&row->hl[i], HL_COMMENT, (row->rsize - i));
+                break;
+            }
+        }
 
         // String
         if (E.syntax->flags & HL_HIGHLIGHT_STRINGS) {
@@ -372,14 +386,11 @@ void editorUpdateSyntax(erow* row) {
 // Return corresponding ANSI color code for each syntax value
 int editorSyntaxToColor(int hl) {
     switch (hl) {
-        case HL_STRING:
-            return 35; // Foreground magenta
-        case HL_NUMBER:
-            return 31; // Foreground red
-        case HL_MATCH:
-            return 34; // Foreground blue
-        default:
-            return 37; // Foreground white
+        case HL_COMMENT: return 36; // Foreground cyan
+        case HL_STRING: return 35; // Foreground magenta
+        case HL_NUMBER: return 31; // Foreground red
+        case HL_MATCH: return 34; // Foreground blue
+        default: return 37; // Foreground white
     }
 }
 
