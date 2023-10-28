@@ -51,12 +51,14 @@ enum editorKey {
 // Highlighting values
 enum editorHighlight {
     HL_NORMAL = 0,
+    HL_STRING,
     HL_NUMBER,
     HL_MATCH
 };
 
 // Flag bit for type of highlighting
 #define HL_HIGHLIGHT_NUMBERS (1 << 0)
+#define HL_HIGHLIGHT_STRINGS (1 << 1)
 
 /*** data ***/
 
@@ -108,7 +110,7 @@ struct editorSyntax HLDB[] = {
     {
         "c",
         C_HL_extensions,
-        HL_HIGHLIGHT_NUMBERS
+        (HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS)
     },
 };
 
@@ -316,12 +318,42 @@ void editorUpdateSyntax(erow* row) {
     }
 
     int prev_sep = 1; // 1 when the previous character is a separator
+    int in_string = 0; // = '"' or '\'' while parsing string
 
     int i = 0;
     while (i < row->rsize) {
         char c = row->render[i];
         unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
 
+        // String
+        if (E.syntax->flags & HL_HIGHLIGHT_STRINGS) {
+            if (in_string) {
+                row->hl[i] = HL_STRING;
+                if (c == '\\' && ((i + 1) < row->rsize)) {
+                    // Continue highlighing when an escaped quote is detected
+                    row->hl[i + 1] = HL_STRING;
+                    i += 2;
+                    continue;
+                }
+                if (c == in_string) {
+                    // Same quote is detected, therefore
+                    // finish highlighting
+                    in_string = 0;
+                }
+                i++;
+                prev_sep = 1; // Set 1 to prepare the end of the string
+                continue;
+            } else {
+                if ((c == '"') || (c == '\'')) {
+                    in_string = c;
+                    row->hl[i] = HL_STRING;
+                    i++;
+                    continue;
+                }
+            }
+        }
+
+        // Number
         if (E.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
             if ((isdigit(c) && (prev_sep || (prev_hl == HL_NUMBER))) ||
                 ((c == '.') && (prev_hl == HL_NUMBER))) {
@@ -340,6 +372,8 @@ void editorUpdateSyntax(erow* row) {
 // Return corresponding ANSI color code for each syntax value
 int editorSyntaxToColor(int hl) {
     switch (hl) {
+        case HL_STRING:
+            return 35; // Foreground magenta
         case HL_NUMBER:
             return 31; // Foreground red
         case HL_MATCH:
