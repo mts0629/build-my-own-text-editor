@@ -5,6 +5,8 @@
 - [Build Your Own Text Editor](https://viewsourcecode.org/snaptoken/kilo/): C言語で軽量テキストエディタを作成するチュートリアルガイド
 - [antirez/kilo](https://github.com/antirez/kilo): テキストエディタ "kilo"
 
+![kilo_screenshot](screenshot.png)
+
 ## Requirement
 
 - gcc (C99)
